@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native"
 import { GLView } from "expo-gl";
 import * as THREE from "three";
+import { loadTruckModel } from "./src/three/loadTruckModel";
 
 export default function App() {
   const animationFrameId = useRef<number | null>(null)
@@ -14,7 +15,7 @@ export default function App() {
     }
   }, [])
 
-  const onContextCreate = (gl: any) => {
+  const onContextCreate = async (gl: any) => {
     const {drawingBufferWidth: width, drawingBufferHeight: height} = gl
 
     const scene = new THREE.Scene()
@@ -45,18 +46,21 @@ export default function App() {
     directionLight.position.set(2,2,2)
     scene.add(directionLight)
 
-    const geometry = new THREE.BoxGeometry(1,1,1)
-    const material = new THREE.MeshStandardMaterial({color: 0x4f8ef7})
-    const cube = new THREE.Mesh(geometry, material)
-    scene.add(cube)
+    let truckModel: THREE.Group | null = null
+
+    try{
+      truckModel = await loadTruckModel()
+      truckModel.rotation.y = Math.PI / 4
+      scene.add(truckModel)
+    } catch (error) {
+      console.error('Failed to load truck model:', error)
+    }
+
 
     const render = () => {
-      cube.rotation.x += 0.01
-      cube.rotation.y += 0.02
-
+      
       renderer.render(scene,camera)
       gl.endFrameEXP()
-      
       animationFrameId.current = requestAnimationFrame(render)
     }
 
