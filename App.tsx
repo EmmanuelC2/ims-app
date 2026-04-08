@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native"
+import { StyleSheet, View, LayoutChangeEvent} from "react-native"
 import { GLView, ExpoWebGLRenderingContext } from "expo-gl";
 import { createTruckScene, TruckSceneController } from './src/three/createTruckScene'
 import { createTruckPanResponder } from "./src/gestures/createTruckPanResponder";
@@ -27,6 +27,10 @@ export default function App() {
   const gestureStartRotationXRef = useRef<number>(0)
   const gestureStartRotationYRef = useRef<number>(0)
 
+  //Store gesture layers size
+  const gestureLayerWidthRef = useRef<number>(0)
+  const gestureLayerHeightRef = useRef<number>(0)
+
   //create pan responder once
   const panResponder = useRef(
     createTruckPanResponder({
@@ -35,8 +39,11 @@ export default function App() {
       truckRotationYRef,
       gestureStartRotationXRef,
       gestureStartRotationYRef,
+      gestureLayerWidthRef,
+      gestureLayerHeightRef,
       xSensitivity: 0.01,
       ySensitivity: 0.01,
+      tapThreshold: 8,
     })
   ).current
 
@@ -60,6 +67,12 @@ export default function App() {
     sceneControllerRef.current = await createTruckScene(gl)
   }
 
+  //Capture gesture layer size
+  function onGestureLayerLayout(event: LayoutChangeEvent): void {
+    gestureLayerWidthRef.current = event.nativeEvent.layout.width
+    gestureLayerHeightRef. current = event.nativeEvent.layout.height
+  }
+
   /**
    * Render the GLView
    * GLView provides native rendering surface where Three.js draws.
@@ -69,6 +82,7 @@ export default function App() {
       <GLView style={styles.glView} onContextCreate={onContextCreate} />
       <View
         style={styles.gestureLayer}
+        onLayout={onGestureLayerLayout}
         {...panResponder.panHandlers}
       />
     </View>

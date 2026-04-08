@@ -15,8 +15,11 @@ interface CreateTruckPanResponderParams {
     truckRotationYRef: RefObject<number>
     gestureStartRotationXRef: RefObject<number>
     gestureStartRotationYRef: RefObject<number>
+    gestureLayerWidthRef: RefObject<number>
+    gestureLayerHeightRef: RefObject<number>
     xSensitivity?: number
     ySensitivity?: number
+    tapThreshold?: number
 }
 
 /**
@@ -34,8 +37,11 @@ export function createTruckPanResponder({
     truckRotationYRef, 
     gestureStartRotationXRef, 
     gestureStartRotationYRef,
+    gestureLayerWidthRef,
+    gestureLayerHeightRef,
     xSensitivity = 0.01,
-    ySensitivity = 0.01
+    ySensitivity = 0.01,
+    tapThreshold = 8,
 }: CreateTruckPanResponderParams): PanResponderInstance {
 
     return PanResponder.create({
@@ -57,6 +63,19 @@ export function createTruckPanResponder({
 
             sceneControllerRef.current?.setTruckRotation(nextRotationX, nextRotationY)
            
+        },
+
+        onPanResponderRelease: (event, gestureState) => {
+            const isTap = Math.abs(gestureState.dx) < tapThreshold && Math.abs(gestureState.dy) < tapThreshold
+
+            if(!isTap) return
+
+            sceneControllerRef.current?.handleScreenTap(
+                event.nativeEvent.locationX,
+                event.nativeEvent.locationY,
+                gestureLayerWidthRef.current,
+                gestureLayerHeightRef.current
+            )
         }
     })
 

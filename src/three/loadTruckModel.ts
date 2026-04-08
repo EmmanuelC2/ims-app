@@ -3,7 +3,7 @@ import { Asset } from "expo-asset"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 
 type LoadedModel = {
-    scene: THREE.Group
+    model: THREE.Object3D
     animations: THREE.AnimationClip[]
 }
 
@@ -39,7 +39,7 @@ export async function loadTruckModel(): Promise<LoadedModel> {
                 model.position.set(0,0,0)
                 //resolve promise with loaded model
                 resolve({
-                    scene: gltf.scene,
+                    model,
                     animations: gltf.animations
                 })
             },

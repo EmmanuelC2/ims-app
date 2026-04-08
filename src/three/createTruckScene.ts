@@ -10,6 +10,12 @@ import { ExpoWebGLRenderingContext } from 'expo-gl'
 export interface TruckSceneController {
     dispose: () => void
     setTruckRotation: (rotationX: number, rotationY: number) => void
+    handleScreenTap: (
+        x: number,
+        y: number,
+        screenWidth: number,
+        screenHeight: number,
+    ) => void
 }
 
 /**
@@ -32,7 +38,7 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
      * Main scene container, all objects added here
      */
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x111111)
+    scene.background = new THREE.Color(0x8d99ae)
 
     const camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
     camera.position.z = 10
@@ -67,15 +73,61 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
     /**
      * Load the truck 3D model asynchronously
      */
-    let truckModel: {
-        scene: THREE.Group
-        animations: THREE.AnimationClip[]
-    } | null = null
+    let truckModel: THREE.Object3D | null = null
+
+    //Animation State
+    let mixer: THREE.AnimationMixer | null = null
+    const animationActions: Record<string, THREE.AnimationAction> = {}
+    const compartmentAnimationMap: Record<string, string> = {
+        DriverCompartment001: 'Driver.Compartment.001Action',
+        DriverCompartment002: 'Driver.Compartment.002Action',
+        PassengerCompartment001: 'Passenger.Compartment.001Action',
+        PassengerCompartment002: 'Passenger.Compartment.002Action',
+        
+    }
+
+    // Raycasting helpers
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+
+    //Store only the meshes we want to allow clicking on
+    const clickableCompartments: THREE.Object3D[] = []
 
     try {
-        truckModel = await loadTruckModel()
-        //truckModel.scene.rotation.y = Math.PI / 4
-        scene.add(truckModel.scene)
+        const loadedTruck = await loadTruckModel()
+
+        truckModel = loadedTruck.model
+        scene.add(truckModel)
+
+        //Build animation mixer
+        mixer = new THREE.AnimationMixer(truckModel)
+
+        loadedTruck.animations.forEach((clip) => {
+            const action = mixer!.clipAction(clip)
+            action.clampWhenFinished = true
+            action.loop = THREE.LoopOnce
+            animationActions[clip.name] = action
+        })
+
+        //console.log('Avaliable animations: ', loadedTruck.animations.map((clip) => clip.name))
+
+        /**
+         * Mark clickable compartment meshes
+         * Example:
+         * - compartment_front_left
+         * - compartment_rear_right 
+         */
+        truckModel.traverse((child) => {
+            const isMesh = child instanceof THREE.Mesh
+            const isCompartment = child.name.toLowerCase().includes('compartment')
+
+            if(isMesh && isCompartment){
+                clickableCompartments.push(child)
+            }
+        })
+
+        //console.log('Clickable compartments:', clickableCompartments.map((mesh)=>mesh.name))
+
     } catch (error) {
         console.error('Failed to load truck model:', error)
     }
@@ -89,12 +141,20 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
      */
     let isDisposed = false
 
+    // animation clock
+    const clock = new THREE.Clock()
+
     /**
      * Main render loop
      * Runs every frame (60fps)
      */
     const render = () => {
         if (isDisposed) return
+
+        const delta = clock.getDelta()
+
+        //Advance active animations
+        mixer?.update(delta)
 
         renderer.render(scene, camera)
 
@@ -109,26 +169,77 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
 
     render()
 
+    function playAnimation(animationName: string): void {
+        const action = animationActions[animationName]
+        
+        if(!action){
+            console.log(`No animation found for: ${animationName}`)
+            return
+        }
+
+        //stop any current running compartment actions
+        Object.values(animationActions).forEach((existingAction) => {
+            existingAction.stop()
+        })
+
+        action.reset()
+        action.play()
+    }
+
     /**
      * Return a controller so React can clean everything up
      */
     return {
         setTruckRotation: (rotationX: number, rotationY: number) => {
-            if(!truckModel || !truckModel.scene.rotation) return
+            if(!truckModel || !truckModel.rotation) return
 
             //Clamp the tilt so the truck cannot flip
             const minRotationX = -Math.PI / 12
             const maxRotaionX = Math.PI / 8
 
-            truckModel.scene.rotation.x = THREE.MathUtils.clamp(
+            truckModel.rotation.x = THREE.MathUtils.clamp(
                 rotationX,
                 minRotationX,
                 maxRotaionX
             )
 
-            truckModel.scene.rotation.y = rotationY
+            truckModel.rotation.y = rotationY
+        },
+        handleScreenTap: (
+            x: number,
+            y: number,
+            screenWidth: number,
+            screenHeight: number
+        ) => {
+            if(!truckModel || clickableCompartments.length === 0) return
 
+            /**
+             * Convert screen coordinates into normalized device coordinates:
+             * x: -1 to 1
+             * y: -1 to 1
+             */
+            pointer.x = (x / screenWidth) * 2 - 1
+            pointer.y = -(y / screenHeight) * 2 + 1
 
+            raycaster.setFromCamera(pointer, camera)
+
+            //recursive = true so children are considered
+            const intersects = raycaster.intersectObjects(
+                clickableCompartments,
+                true
+            )
+
+            if(intersects.length === 0) return
+
+            const clickedMeshName = intersects[0].object.name
+            
+            //console.log('Compartment clicked: ', clickedMeshName)
+
+            const animationName = compartmentAnimationMap[clickedMeshName]
+            if(animationName){
+                playAnimation(animationName)
+            }
+            
         },
         dispose: () => {
             isDisposed = true
@@ -140,8 +251,11 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
 
             //Remove model from scene
             if (truckModel) {
-                scene.remove(truckModel.scene)
+                scene.remove(truckModel)
             }
+
+            //Stop animations
+            mixer?.stopAllAction()
 
             //Dispose renderer to free up gpu mem
             renderer.dispose()
