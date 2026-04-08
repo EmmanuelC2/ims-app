@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native"
-import { GLView } from "expo-gl";
-import {createTruckScene, TruckSceneController} from './src/three/createTruckScene'
-import { ExpoWebGLRenderingContext } from 'expo-gl'
+import { GLView, ExpoWebGLRenderingContext } from "expo-gl";
+import { createTruckScene, TruckSceneController } from './src/three/createTruckScene'
+import { createTruckPanResponder } from "./src/gestures/createTruckPanResponder";
 
 /**
  * Root component of the app
@@ -19,6 +19,27 @@ export default function App() {
   */
   const sceneControllerRef = useRef<TruckSceneController | null>(null)
 
+  //Stores trucks current x-axis rotation
+  const truckRotationXRef = useRef<number>(0)
+  const truckRotationYRef = useRef<number>(0)
+
+  //Stores trucks x-axis rotation at the moment drag begins
+  const gestureStartRotationXRef = useRef<number>(0)
+  const gestureStartRotationYRef = useRef<number>(0)
+
+  //create pan responder once
+  const panResponder = useRef(
+    createTruckPanResponder({
+      sceneControllerRef,
+      truckRotationXRef,
+      truckRotationYRef,
+      gestureStartRotationXRef,
+      gestureStartRotationYRef,
+      xSensitivity: 0.01,
+      ySensitivity: 0.01,
+    })
+  ).current
+
   /**
    * Cleaup effect runs when component unmounts.
    * Ensures three.js scene is properly disposed to avoid memory leaks, gpu resource leaks, or lingering animation loops
@@ -34,7 +55,7 @@ export default function App() {
    * Entry point for Three.js setup
    * @param gl ExpoWebGLRenderingContext - special GL contxt from Expo
    */
-  async function onContextCreate(gl:ExpoWebGLRenderingContext) {
+  async function onContextCreate(gl: ExpoWebGLRenderingContext) {
     //intialize three.js scene and store controller
     sceneControllerRef.current = await createTruckScene(gl)
   }
@@ -46,6 +67,10 @@ export default function App() {
   return (
     <View style={styles.container}>
       <GLView style={styles.glView} onContextCreate={onContextCreate} />
+      <View
+        style={styles.gestureLayer}
+        {...panResponder.panHandlers}
+      />
     </View>
   )
 }
@@ -57,5 +82,8 @@ const styles = StyleSheet.create({
   },
   glView: {
     flex: 1,
+  },
+  gestureLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
 })

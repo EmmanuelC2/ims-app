@@ -9,6 +9,7 @@ import { ExpoWebGLRenderingContext } from 'expo-gl'
  */
 export interface TruckSceneController {
     dispose: () => void
+    setTruckRotation: (rotationX: number, rotationY: number) => void
 }
 
 /**
@@ -73,7 +74,7 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
 
     try {
         truckModel = await loadTruckModel()
-        truckModel.scene.rotation.y = Math.PI / 4
+        //truckModel.scene.rotation.y = Math.PI / 4
         scene.add(truckModel.scene)
     } catch (error) {
         console.error('Failed to load truck model:', error)
@@ -112,6 +113,23 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
      * Return a controller so React can clean everything up
      */
     return {
+        setTruckRotation: (rotationX: number, rotationY: number) => {
+            if(!truckModel || !truckModel.scene.rotation) return
+
+            //Clamp the tilt so the truck cannot flip
+            const minRotationX = -Math.PI / 12
+            const maxRotaionX = Math.PI / 8
+
+            truckModel.scene.rotation.x = THREE.MathUtils.clamp(
+                rotationX,
+                minRotationX,
+                maxRotaionX
+            )
+
+            truckModel.scene.rotation.y = rotationY
+
+
+        },
         dispose: () => {
             isDisposed = true
 
