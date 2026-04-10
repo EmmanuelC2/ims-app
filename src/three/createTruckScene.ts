@@ -1,6 +1,16 @@
 import * as THREE from 'three'
 import { loadTruckModel } from './loadTruckModel'
 import { ExpoWebGLRenderingContext } from 'expo-gl'
+import {
+    CameraZoomAnimation,
+    createCameraZoomAnimation,
+    advanceCameraZoomAnimation,
+} from './animations/cameraZoom'
+import {
+    TruckRotationAnimation,
+    createTruckRotationAnimation,
+    advanceTruckRotationAnimation,
+} from './animations/truckRotation'
 
 /**
  * Controller returned to the React layer.
@@ -16,6 +26,7 @@ export interface TruckSceneController {
         screenWidth: number,
         screenHeight: number,
     ) => void
+    isCompartmentOpen: () => boolean
 }
 
 /**
@@ -43,6 +54,20 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
     const camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
     camera.position.z = 10
     camera.position.y = 1
+
+    //Point the camera is currently looking at (updated during zoom animations)
+    const currentLookAt = new THREE.Vector3(0, 0, 0)
+    camera.lookAt(currentLookAt)
+
+    //Active camera zoom animation, advanced each frame by the render loop
+    let cameraZoomAnimation: CameraZoomAnimation | null = null
+
+    //Active truck rotation animation, advanced each frame by the render loop
+    let truckRotationAnimation: TruckRotationAnimation | null = null
+
+    //Distance (world units) the camera should sit from a tapped compartment
+    const compartmentZoomDistance = 3
+    const compartmentZoomDuration = 0.8
 
     /** 
      * WebGL renderer using Expo's GL context.
@@ -92,6 +117,9 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
 
     //Store only the meshes we want to allow clicking on
     const clickableCompartments: THREE.Object3D[] = []
+
+    //True once any compartment has been tapped open. Used to disable drag-rotate.
+    let hasOpenCompartment = false
 
     try {
         const loadedTruck = await loadTruckModel()
@@ -156,6 +184,27 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
         //Advance active animations
         mixer?.update(delta)
 
+        //Advance truck rotation animation (if any)
+        if (truckRotationAnimation && truckModel) {
+            const done = advanceTruckRotationAnimation(
+                truckRotationAnimation,
+                truckModel,
+                delta
+            )
+            if (done) truckRotationAnimation = null
+        }
+
+        //Advance camera zoom animation (if any)
+        if (cameraZoomAnimation) {
+            const done = advanceCameraZoomAnimation(
+                cameraZoomAnimation,
+                camera,
+                currentLookAt,
+                delta
+            )
+            if (done) cameraZoomAnimation = null
+        }
+
         renderer.render(scene, camera)
 
         /**
@@ -190,6 +239,7 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
      * Return a controller so React can clean everything up
      */
     return {
+        isCompartmentOpen: () => hasOpenCompartment,
         setTruckRotation: (rotationX: number, rotationY: number) => {
             if(!truckModel || !truckModel.rotation) return
 
@@ -236,10 +286,107 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
             //console.log('Compartment clicked: ', clickedMeshName)
 
             const animationName = compartmentAnimationMap[clickedMeshName]
-            if(animationName){
+            if(animationName && truckModel){
                 playAnimation(animationName)
+                hasOpenCompartment = true
+
+                const compartmentMesh = intersects[0].object
+
+                /**
+                 * Compute the target truck Y rotation so the tapped compartment's
+                 * side of the truck faces the camera perpendicularly.
+                 *
+                 * A truck is long along one horizontal axis ("length") and short
+                 * along the other ("width"). Compartments sit on the width axis
+                 * (driver side vs passenger side), so the camera should look
+                 * straight down the width axis to see the compartment head-on.
+                 *
+                 * Steps:
+                 * 1. Get the compartment's position in the truck's LOCAL frame.
+                 * 2. Measure the truck's un-rotated bounding box to decide which
+                 *    local axis is length vs width.
+                 * 3. The outward normal is a unit vector along the local width
+                 *    axis, signed by which side of the truck the compartment is on.
+                 * 4. Rotate the truck so that local normal lines up with world +Z.
+                 */
+                const originalRotationX = truckModel.rotation.x
+                const originalRotationY = truckModel.rotation.y
+                truckModel.updateMatrixWorld(true)
+
+                const compartmentWorldPos = new THREE.Vector3()
+                compartmentMesh.getWorldPosition(compartmentWorldPos)
+                const compartmentLocalPos = truckModel.worldToLocal(
+                    compartmentWorldPos.clone()
+                )
+
+                //Measure truck size in its un-rotated local frame
+                truckModel.rotation.x = 0
+                truckModel.rotation.y = 0
+                truckModel.updateMatrixWorld(true)
+
+                const truckLocalSize = new THREE.Box3()
+                    .setFromObject(truckModel)
+                    .getSize(new THREE.Vector3())
+
+                //Longer horizontal dimension = length axis; the other is width
+                const widthAxisIsZ = truckLocalSize.x >= truckLocalSize.z
+                const normalLocalX = widthAxisIsZ
+                    ? 0
+                    : (compartmentLocalPos.x >= 0 ? 1 : -1)
+                const normalLocalZ = widthAxisIsZ
+                    ? (compartmentLocalPos.z >= 0 ? 1 : -1)
+                    : 0
+
+                const rawTargetRotationY = -Math.atan2(normalLocalX, normalLocalZ)
+
+                /**
+                 * Preview the final orientation to read the compartment's
+                 * post-rotation world position — this is what the camera zooms to.
+                 */
+                truckModel.rotation.y = rawTargetRotationY
+                truckModel.updateMatrixWorld(true)
+
+                const finalCompartmentCenter = new THREE.Box3()
+                    .setFromObject(compartmentMesh)
+                    .getCenter(new THREE.Vector3())
+
+                truckModel.rotation.x = originalRotationX
+                truckModel.rotation.y = originalRotationY
+                truckModel.updateMatrixWorld(true)
+
+                /**
+                 * Shortest angular path so the truck doesn't spin the long way
+                 * around if the user has accumulated many revolutions.
+                 */
+                const twoPi = Math.PI * 2
+                const diff = rawTargetRotationY - originalRotationY
+                const wrappedDiff =
+                    ((diff + Math.PI) % twoPi + twoPi) % twoPi - Math.PI
+                const targetTruckRotationY = originalRotationY + wrappedDiff
+
+                /**
+                 * Camera sits along +Z from the compartment at a fixed distance,
+                 * with matching Y so the compartment is directly in front.
+                 */
+                const targetCameraPosition = finalCompartmentCenter.clone()
+                targetCameraPosition.z += compartmentZoomDistance
+
+                truckRotationAnimation = createTruckRotationAnimation({
+                    truckModel,
+                    targetRotationX: 0,
+                    targetRotationY: targetTruckRotationY,
+                    duration: compartmentZoomDuration,
+                })
+
+                cameraZoomAnimation = createCameraZoomAnimation({
+                    camera,
+                    currentLookAt,
+                    targetPosition: targetCameraPosition,
+                    targetLookAt: finalCompartmentCenter,
+                    duration: compartmentZoomDuration,
+                })
             }
-            
+
         },
         dispose: () => {
             isDisposed = true

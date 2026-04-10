@@ -55,6 +55,10 @@ export function createTruckPanResponder({
         },
 
         onPanResponderMove: (_, gestureState) => {
+            //Drag-rotate is disabled while a compartment is open.
+            //Tap-release still fires, so users can tap other compartments.
+            if (sceneControllerRef.current?.isCompartmentOpen()) return
+
             //Add current vertical and horizontal drag distance to rotation
             const nextRotationX = gestureStartRotationXRef.current + gestureState.dy * xSensitivity
             const nextRotationY = gestureStartRotationYRef.current + gestureState.dx * ySensitivity
@@ -62,7 +66,7 @@ export function createTruckPanResponder({
             truckRotationYRef.current = nextRotationY
 
             sceneControllerRef.current?.setTruckRotation(nextRotationX, nextRotationY)
-           
+
         },
 
         onPanResponderRelease: (event, gestureState) => {
