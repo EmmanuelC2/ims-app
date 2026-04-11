@@ -1,80 +1,103 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native"
-import { GLView } from "expo-gl";
-import * as THREE from "three";
+import { StyleSheet, View, LayoutChangeEvent} from "react-native"
+import { GLView, ExpoWebGLRenderingContext } from "expo-gl";
+import { createTruckScene, TruckSceneController } from './src/three/createTruckScene'
+import { createTruckPanResponder } from "./src/gestures/createTruckPanResponder";
 
+/**
+ * Root component of the app
+ * Responsibilities: 
+ * - Render the GLView (native OpenGL surface)
+ * - Initailize the Three.js scene
+ * - Manage cleanup when the component unmounts
+ */
 export default function App() {
-  const animationFrameId = useRef<number | null>(null)
 
+  /**
+   * Holds reference to scene controller from createTruckScene()
+   * Allows us to stop render loop and dispose gpu resources when component is destroyed
+  */
+  const sceneControllerRef = useRef<TruckSceneController | null>(null)
+
+  //Stores trucks current x-axis rotation
+  const truckRotationXRef = useRef<number>(0)
+  const truckRotationYRef = useRef<number>(0)
+
+  //Stores trucks x-axis rotation at the moment drag begins
+  const gestureStartRotationXRef = useRef<number>(0)
+  const gestureStartRotationYRef = useRef<number>(0)
+
+  //Store gesture layers size
+  const gestureLayerWidthRef = useRef<number>(0)
+  const gestureLayerHeightRef = useRef<number>(0)
+
+  //create pan responder once
+  const panResponder = useRef(
+    createTruckPanResponder({
+      sceneControllerRef,
+      truckRotationXRef,
+      truckRotationYRef,
+      gestureStartRotationXRef,
+      gestureStartRotationYRef,
+      gestureLayerWidthRef,
+      gestureLayerHeightRef,
+      xSensitivity: 0.01,
+      ySensitivity: 0.01,
+      tapThreshold: 8,
+    })
+  ).current
+
+  /**
+   * Cleaup effect runs when component unmounts.
+   * Ensures three.js scene is properly disposed to avoid memory leaks, gpu resource leaks, or lingering animation loops
+   */
   useEffect(() => {
     return () => {
-      if(animationFrameId.current !== null){
-        cancelAnimationFrame(animationFrameId.current);
-      }
+      sceneControllerRef.current?.dispose()
     }
   }, [])
 
-  const onContextCreate = (gl: any) => {
-    const {drawingBufferWidth: width, drawingBufferHeight: height} = gl
-
-    const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x111111)
-
-    const camera = new THREE.PerspectiveCamera(70, width/height, 0.1, 1000)
-    camera.position.z = 3 
-
-    const renderer = new THREE.WebGLRenderer({
-      canvas: {
-        width,
-        height,
-        style: {}, 
-        addEventListener: () => {}, 
-        removeEventListener: () => {},
-        clientHeight: height,
-        clientWidth: width,
-      } as any,
-      context: gl,
-    })
-
-    renderer.setSize(width, height)
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8)
-    scene.add(ambientLight)
-
-    const directionLight = new THREE.DirectionalLight(0xffffff, 1.2)
-    directionLight.position.set(2,2,2)
-    scene.add(directionLight)
-
-    const geometry = new THREE.BoxGeometry(1,1,1)
-    const material = new THREE.MeshStandardMaterial({color: 0x4f8ef7})
-    const cube = new THREE.Mesh(geometry, material)
-    scene.add(cube)
-
-    const render = () => {
-      cube.rotation.x += 0.01
-      cube.rotation.y += 0.02
-
-      renderer.render(scene,camera)
-      gl.endFrameEXP()
-      
-      animationFrameId.current = requestAnimationFrame(render)
-    }
-
-    render()
+  /**
+   * Called automatically by GLView when OpenGL context is ready.
+   * Entry point for Three.js setup
+   * @param gl ExpoWebGLRenderingContext - special GL contxt from Expo
+   */
+  async function onContextCreate(gl: ExpoWebGLRenderingContext) {
+    //intialize three.js scene and store controller
+    sceneControllerRef.current = await createTruckScene(gl)
   }
 
+  //Capture gesture layer size
+  function onGestureLayerLayout(event: LayoutChangeEvent): void {
+    gestureLayerWidthRef.current = event.nativeEvent.layout.width
+    gestureLayerHeightRef. current = event.nativeEvent.layout.height
+  }
+
+  /**
+   * Render the GLView
+   * GLView provides native rendering surface where Three.js draws.
+   */
   return (
     <View style={styles.container}>
       <GLView style={styles.glView} onContextCreate={onContextCreate} />
+      <View
+        style={styles.gestureLayer}
+        onLayout={onGestureLayerLayout}
+        {...panResponder.panHandlers}
+      />
     </View>
   )
 }
 
+//Basic layout styles (Flex: 1 ensures GLView fills entire screen)
 const styles = StyleSheet.create({
   container: {
     flex: 1
   },
   glView: {
     flex: 1,
+  },
+  gestureLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
 })
