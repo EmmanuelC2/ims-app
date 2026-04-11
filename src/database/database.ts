@@ -28,19 +28,19 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS compartments (
     compartmentId   INTEGER PRIMARY KEY AUTOINCREMENT,
-    compartmentName TEXT NOT NULL
+    compartmentName TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS items (
     itemId   INTEGER PRIMARY KEY AUTOINCREMENT,
-    itemName TEXT NOT NULL,
-    itemUrl  TEXT NOT NULL
+    itemName TEXT NOT NULL UNIQUE,
+    itemUrl  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS compartment_items (
     compartmentId INTEGER NOT NULL,
     itemId        INTEGER NOT NULL,
-    itemQuantity  INTEGER NOT NULL,
+    itemQuantity  INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (compartmentId, itemId),
     FOREIGN KEY (compartmentId) REFERENCES compartments(compartmentId) ON DELETE CASCADE,
     FOREIGN KEY (itemId)        REFERENCES items(itemId)        ON DELETE CASCADE

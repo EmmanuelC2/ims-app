@@ -27,6 +27,7 @@ export interface TruckSceneController {
         screenHeight: number,
     ) => void
     isCompartmentOpen: () => boolean
+    closeCompartment: () => void
 }
 
 /**
@@ -39,7 +40,17 @@ export interface TruckSceneController {
  * - Model loading
  * - Render loop
  */
-export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<TruckSceneController> {
+/**
+ * Optional hooks the React layer can supply to react to scene events.
+ */
+export interface TruckSceneOptions {
+    onCompartmentOpened?: (compartmentName: string) => void
+}
+
+export async function createTruckScene(
+    gl: ExpoWebGLRenderingContext,
+    options: TruckSceneOptions = {},
+): Promise<TruckSceneController> {
     /**
      * GL drawing buffer, Determines how large the renderer should be
      */
@@ -58,6 +69,11 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
     //Point the camera is currently looking at (updated during zoom animations)
     const currentLookAt = new THREE.Vector3(0, 0, 0)
     camera.lookAt(currentLookAt)
+
+    //Snapshot of the camera's initial position and lookAt so closeCompartment()
+    //can animate back to the default view.
+    const defaultCameraPosition = camera.position.clone()
+    const defaultCameraLookAt = currentLookAt.clone()
 
     //Active camera zoom animation, advanced each frame by the render loop
     let cameraZoomAnimation: CameraZoomAnimation | null = null
@@ -104,10 +120,10 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
     let mixer: THREE.AnimationMixer | null = null
     const animationActions: Record<string, THREE.AnimationAction> = {}
     const compartmentAnimationMap: Record<string, string> = {
-        DriverCompartment001: 'Driver.Compartment.001Action',
-        DriverCompartment002: 'Driver.Compartment.002Action',
-        PassengerCompartment001: 'Passenger.Compartment.001Action',
-        PassengerCompartment002: 'Passenger.Compartment.002Action',
+        DriverCompartment001: 'Driver.Compartment.001.Open',
+        DriverCompartment002: 'Driver.Compartment.002.Open',
+        PassengerCompartment001: 'Passenger.Compartment.001.Open',
+        PassengerCompartment002: 'Passenger.Compartment.002.Open',
         
     }
 
@@ -118,8 +134,17 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
     //Store only the meshes we want to allow clicking on
     const clickableCompartments: THREE.Object3D[] = []
 
-    //True once any compartment has been tapped open. Used to disable drag-rotate.
+    //True once any compartment has been tapped open. Used to disable drag-rotate
+    //and further compartment taps until the panel is closed.
     let hasOpenCompartment = false
+
+    //Compartment whose open/zoom/rotate animations are in-flight. When the
+    //camera zoom settles we fire onCompartmentOpened with this name.
+    let pendingOpenedCompartmentName: string | null = null
+
+    //Mesh name of the currently open compartment. Kept around while the panel
+    //is visible so closeCompartment() knows which close animation to play.
+    let openCompartmentMeshName: string | null = null
 
     try {
         const loadedTruck = await loadTruckModel()
@@ -154,7 +179,7 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
             }
         })
 
-        //console.log('Clickable compartments:', clickableCompartments.map((mesh)=>mesh.name))
+        console.log('Clickable compartments:', clickableCompartments.map((mesh)=>mesh.name))
 
     } catch (error) {
         console.error('Failed to load truck model:', error)
@@ -202,7 +227,16 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
                 currentLookAt,
                 delta
             )
-            if (done) cameraZoomAnimation = null
+            if (done) {
+                cameraZoomAnimation = null
+
+                //All open/rotation/zoom animations share the same duration,
+                //so the zoom finishing is our cue that the reveal is complete.
+                if (pendingOpenedCompartmentName) {
+                    options.onCompartmentOpened?.(pendingOpenedCompartmentName)
+                    pendingOpenedCompartmentName = null
+                }
+            }
         }
 
         renderer.render(scene, camera)
@@ -240,6 +274,30 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
      */
     return {
         isCompartmentOpen: () => hasOpenCompartment,
+        closeCompartment: () => {
+            if(!openCompartmentMeshName) return
+
+            //Open animation name: "Driver.Compartment.001.Open"
+            //Close animation name: "Driver.Compartment.001.Close"
+            const openAnimationName = compartmentAnimationMap[openCompartmentMeshName]
+            const closeAnimationName = openAnimationName?.replace(/\.Open$/, '.Close')
+
+            if(closeAnimationName){
+                playAnimation(closeAnimationName)
+            }
+
+            //Pull the camera back to the default view in sync with the close.
+            cameraZoomAnimation = createCameraZoomAnimation({
+                camera,
+                currentLookAt,
+                targetPosition: defaultCameraPosition,
+                targetLookAt: defaultCameraLookAt,
+                duration: compartmentZoomDuration,
+            })
+
+            hasOpenCompartment = false
+            openCompartmentMeshName = null
+        },
         setTruckRotation: (rotationX: number, rotationY: number) => {
             if(!truckModel || !truckModel.rotation) return
 
@@ -263,6 +321,10 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
         ) => {
             if(!truckModel || clickableCompartments.length === 0) return
 
+            //Ignore taps while a compartment is open; the inventory panel owns
+            //the interaction until the user closes it.
+            if(hasOpenCompartment) return
+
             /**
              * Convert screen coordinates into normalized device coordinates:
              * x: -1 to 1
@@ -283,12 +345,14 @@ export async function createTruckScene(gl: ExpoWebGLRenderingContext): Promise<T
 
             const clickedMeshName = intersects[0].object.name
             
-            //console.log('Compartment clicked: ', clickedMeshName)
+            console.log('Compartment clicked: ', clickedMeshName)
 
             const animationName = compartmentAnimationMap[clickedMeshName]
             if(animationName && truckModel){
                 playAnimation(animationName)
                 hasOpenCompartment = true
+                pendingOpenedCompartmentName = clickedMeshName
+                openCompartmentMeshName = clickedMeshName
 
                 const compartmentMesh = intersects[0].object
 

@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View, LayoutChangeEvent} from "react-native"
 import { GLView, ExpoWebGLRenderingContext } from "expo-gl";
 import { createTruckScene, TruckSceneController } from './src/three/createTruckScene'
 import { createTruckPanResponder } from "./src/gestures/createTruckPanResponder";
+import { InventoryPanel } from "./src/ui/panels/InventoryPanel";
 
 /**
  * Root component of the app
@@ -30,6 +31,10 @@ export default function App() {
   //Store gesture layers size
   const gestureLayerWidthRef = useRef<number>(0)
   const gestureLayerHeightRef = useRef<number>(0)
+
+  //Name of the compartment whose inventory panel is currently displayed.
+  //Set when the scene reports the open/rotate/zoom animations have settled.
+  const [openCompartmentName, setOpenCompartmentName] = useState<string | null>(null)
 
   //create pan responder once
   const panResponder = useRef(
@@ -64,7 +69,11 @@ export default function App() {
    */
   async function onContextCreate(gl: ExpoWebGLRenderingContext) {
     //intialize three.js scene and store controller
-    sceneControllerRef.current = await createTruckScene(gl)
+    sceneControllerRef.current = await createTruckScene(gl, {
+      onCompartmentOpened: (compartmentName) => {
+        setOpenCompartmentName(compartmentName)
+      },
+    })
   }
 
   //Capture gesture layer size
@@ -85,6 +94,15 @@ export default function App() {
         onLayout={onGestureLayerLayout}
         {...panResponder.panHandlers}
       />
+      {openCompartmentName && (
+        <InventoryPanel
+          compartmentName={openCompartmentName}
+          onClose={() => {
+            sceneControllerRef.current?.closeCompartment()
+            setOpenCompartmentName(null)
+          }}
+        />
+      )}
     </View>
   )
 }
