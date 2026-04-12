@@ -39,6 +39,25 @@ export async function listCompartmentItems(
  *
  * Quantity defaults to 1 when not provided.
  */
+/**
+ * Remove an item from a compartment by deleting the junction row in
+ * compartment_items. The item and compartment rows themselves are kept
+ * so they can be reused.
+ */
+export async function removeCompartmentItem(
+    compartmentName: string,
+    itemName: string,
+): Promise<void> {
+    const db = await getDatabase()
+    await db.runAsync(
+        `DELETE FROM compartment_items
+         WHERE compartmentId = (SELECT compartmentId FROM compartments WHERE compartmentName = ?)
+           AND itemId        = (SELECT itemId        FROM items        WHERE itemName        = ?)`,
+        compartmentName,
+        itemName,
+    )
+}
+
 export async function saveInventoryItem(params: {
     compartmentName: string
     itemName: string

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, StyleSheet, Animated, FlatList } from 'react-native'
 import { AddButton } from '../buttons/add'
+import { RemoveButton } from '../buttons/remove'
 import { AddPanel } from './addPanel'
 import {
     CompartmentItemRow,
     listCompartmentItems,
+    removeCompartmentItem,
     saveInventoryItem,
 } from '../../database/inventory'
 
@@ -87,9 +89,19 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                             renderItem={({ item }) => (
                                 <View style={styles.itemRow}>
                                     <Text style={styles.itemName}>{item.itemName}</Text>
-                                    <Text style={styles.itemQuantity}>
-                                        x{item.itemQuantity}
-                                    </Text>
+                                    <View style={styles.itemActions}>
+                                        <Text style={styles.itemQuantity}>
+                                            x{item.itemQuantity}
+                                        </Text>
+                                        <RemoveButton onPress={async () => {
+                                            try {
+                                                await removeCompartmentItem(compartmentName, item.itemName)
+                                                await refreshItems()
+                                            } catch (error) {
+                                                console.error('Failed to remove item:', error)
+                                            }
+                                        }} />
+                                    </View>
                                 </View>
                             )}
                         />
@@ -168,6 +180,11 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: '#2b2d42',
         fontWeight: '500',
+    },
+    itemActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
     itemQuantity: {
         fontSize: 14,
