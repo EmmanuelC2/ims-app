@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, StyleSheet, Animated, FlatList } from 'react-native'
-import { AddButton } from '../buttons/add'
-import { RemoveButton } from '../buttons/remove'
+import { Button } from '../Button'
 import { AddPanel } from './addPanel'
+import { EditPanel } from './editPanel'
 import {
     CompartmentItemRow,
     listCompartmentItems,
     removeCompartmentItem,
     saveInventoryItem,
+    updateInventoryItem,
 } from '../../database/inventory'
 
 interface InventoryPanelProps {
@@ -31,6 +32,9 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
 
     //Whether the AddPanel form is currently overlaid on top of this panel.
     const [isAddPanelOpen, setIsAddPanelOpen] = useState(false)
+
+    //Item currently being edited via the EditPanel, or null when closed.
+    const [editingItem, setEditingItem] = useState<CompartmentItemRow | null>(null)
 
     //Items that live in this compartment, loaded from SQLite.
     const [items, setItems] = useState<CompartmentItemRow[]>([])
@@ -87,13 +91,16 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                             data={items}
                             keyExtractor={(row) => row.itemName}
                             renderItem={({ item }) => (
-                                <View style={styles.itemRow}>
+                                <Pressable
+                                    style={styles.itemRow}
+                                    onPress={() => setEditingItem(item)}
+                                >
                                     <Text style={styles.itemName}>{item.itemName}</Text>
                                     <View style={styles.itemActions}>
                                         <Text style={styles.itemQuantity}>
                                             x{item.itemQuantity}
                                         </Text>
-                                        <RemoveButton onPress={async () => {
+                                        <Button label="DEL" variant="danger" compact onPress={async () => {
                                             try {
                                                 await removeCompartmentItem(compartmentName, item.itemName)
                                                 await refreshItems()
@@ -102,14 +109,14 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                                             }
                                         }} />
                                     </View>
-                                </View>
+                                </Pressable>
                             )}
                         />
                     )}
                 </View>
 
                 <View style={styles.footer}>
-                    <AddButton onPress={() => setIsAddPanelOpen(true)} />
+                    <Button label="Add Item" variant="success" onPress={() => setIsAddPanelOpen(true)} />
                     <Pressable style={styles.closeButton} onPress={onClose}>
                         <Text style={styles.closeButtonText}>Close</Text>
                     </Pressable>
@@ -128,6 +135,25 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                             console.error('Failed to save inventory item:', error)
                         }
                         setIsAddPanelOpen(false)
+                    }}
+                />
+            )}
+
+            {editingItem && (
+                <EditPanel
+                    compartmentName={compartmentName}
+                    itemName={editingItem.itemName}
+                    itemUrl={editingItem.itemUrl}
+                    itemQuantity={editingItem.itemQuantity}
+                    onClose={() => setEditingItem(null)}
+                    onUpdate={async (updated) => {
+                        try {
+                            await updateInventoryItem(updated)
+                            await refreshItems()
+                        } catch (error) {
+                            console.error('Failed to update item:', error)
+                        }
+                        setEditingItem(null)
                     }}
                 />
             )}

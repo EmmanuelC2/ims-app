@@ -5,8 +5,11 @@ import {
     TextInput,
     Pressable,
     StyleSheet,
+    KeyboardAvoidingView,
+    ScrollView,
+    Platform,
 } from 'react-native'
-import { SaveButton } from '../buttons/save'
+import { Button } from '../Button'
 
 interface AddPanelProps {
     compartmentName: string
@@ -41,60 +44,69 @@ export function AddPanel({ compartmentName, onClose, onSave }: AddPanelProps) {
     }
 
     return (
-        <View style={styles.backdrop}>
+        <KeyboardAvoidingView
+            style={styles.backdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
             <View style={styles.panel}>
-                <Text style={styles.title}>Add Item</Text>
+                <ScrollView keyboardShouldPersistTaps="handled">
+                    <Text style={styles.title}>Add Item</Text>
 
-                <View style={styles.field}>
-                    <Text style={styles.label}>Compartment</Text>
-                    <TextInput
-                        style={[styles.input, styles.inputDisabled]}
-                        value={compartmentName}
-                        editable={false}
-                    />
-                </View>
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Compartment</Text>
+                        <TextInput
+                            style={[styles.input, styles.inputDisabled]}
+                            value={compartmentName}
+                            editable={false}
+                        />
+                    </View>
 
-                <View style={styles.field}>
-                    <Text style={styles.label}>Item Name</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={itemName}
-                        onChangeText={setItemName}
-                        placeholder="e.g. Wrench"
-                    />
-                </View>
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Item Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={itemName}
+                            onChangeText={setItemName}
+                            placeholder="e.g. Wrench"
+                            autoComplete="off"
+                            importantForAutofill="no"
+                        />
+                    </View>
 
-                <View style={styles.field}>
-                    <Text style={styles.label}>Item URL (optional)</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={itemUrl}
-                        onChangeText={setItemUrl}
-                        placeholder="https://..."
-                        autoCapitalize="none"
-                        keyboardType="url"
-                    />
-                </View>
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Item URL (optional)</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={itemUrl}
+                            onChangeText={setItemUrl}
+                            placeholder="https://..."
+                            autoCapitalize="none"
+                            autoComplete="off"
+                            keyboardType="url"
+                        />
+                    </View>
 
-                <View style={styles.field}>
-                    <Text style={styles.label}>Quantity</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={itemQuantity}
-                        onChangeText={setItemQuantity}
-                        placeholder="0"
-                        keyboardType="number-pad"
-                    />
-                </View>
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Quantity</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={itemQuantity}
+                            onChangeText={setItemQuantity}
+                            placeholder="0"
+                            autoComplete="off"
+                            keyboardType="number-pad"
+                        />
+                    </View>
 
-                <View style={styles.footer}>
-                    <Pressable style={styles.cancelButton} onPress={onClose}>
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </Pressable>
-                    <SaveButton onPress={handleSave} />
-                </View>
+                    <View style={styles.footer}>
+                        <Pressable style={styles.cancelButton} onPress={onClose}>
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </Pressable>
+                        <Button label="Save" onPress={handleSave} />
+                    </View>
+                </ScrollView>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     )
 }
 

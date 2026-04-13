@@ -44,14 +44,14 @@ All rotation state is stored in refs (not React state) to avoid re-renders durin
   - `compartments` (compartmentId PK, compartmentName UNIQUE)
   - `items` (itemId PK, itemName UNIQUE, itemUrl)
   - `compartment_items` (composite PK compartmentId+itemId, itemQuantity DEFAULT 1, FKs with CASCADE)
-- `inventory.ts` — `saveInventoryItem()` upserts across all three tables in a transaction; `listCompartmentItems()` joins to return item names + quantities for a compartment.
+- `inventory.ts` — `saveInventoryItem()` upserts across all three tables in a transaction; `listCompartmentItems()` joins to return item names + quantities for a compartment; `removeCompartmentItem()` deletes the junction row.
 
 Schema uses `IF NOT EXISTS` but UNIQUE constraints require a fresh DB if changed. Delete/reinstall the app to pick up schema changes during development.
 
 ### UI (`src/ui/`)
 - `panels/InventoryPanel.tsx` — fullscreen overlay (90%) that scale+fade animates in after compartment zoom completes. Fetches and displays a FlatList of items from SQLite; re-fetches after saves.
 - `panels/addPanel.tsx` — form for adding an item (compartmentName read-only, itemName, itemUrl optional, itemQuantity). Calls `saveInventoryItem` via the parent.
-- `buttons/add.tsx`, `buttons/save.tsx` — reusable styled Pressable buttons.
+- `buttons/add.tsx`, `buttons/save.tsx`, `buttons/remove.tsx` — reusable styled Pressable buttons.
 
 ### Data Flow (tap → panel → save)
 1. User taps screen → PanResponder detects tap → `controller.handleScreenTap()` raycasts

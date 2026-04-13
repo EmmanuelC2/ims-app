@@ -6,6 +6,7 @@ import { getDatabase } from './database'
  */
 export interface CompartmentItemRow {
     itemName: string
+    itemUrl: string | null
     itemQuantity: number
 }
 
@@ -18,7 +19,7 @@ export async function listCompartmentItems(
 ): Promise<CompartmentItemRow[]> {
     const db = await getDatabase()
     return db.getAllAsync<CompartmentItemRow>(
-        `SELECT items.itemName AS itemName, ci.itemQuantity AS itemQuantity
+        `SELECT items.itemName AS itemName, items.itemUrl AS itemUrl, ci.itemQuantity AS itemQuantity
          FROM compartment_items ci
          JOIN compartments ON compartments.compartmentId = ci.compartmentId
          JOIN items        ON items.itemId               = ci.itemId
@@ -56,6 +57,93 @@ export async function removeCompartmentItem(
         compartmentName,
         itemName,
     )
+}
+
+/**
+ * Return every compartment name in the database, sorted alphabetically.
+ * Used by the edit panel's compartment dropdown.
+ */
+export async function listAllCompartmentNames(): Promise<string[]> {
+    const db = await getDatabase()
+    const rows = await db.getAllAsync<{ compartmentName: string }>(
+        'SELECT compartmentName FROM compartments ORDER BY compartmentName ASC',
+    )
+    return rows.map((r) => r.compartmentName)
+}
+
+/**
+ * Update an existing inventory entry. Handles changes to the item's name,
+ * URL, quantity, and even moving it to a different compartment.
+ *
+ * Identified by the original compartment + item name pair.
+ */
+export async function updateInventoryItem(params: {
+    originalCompartmentName: string
+    originalItemName: string
+    compartmentName: string
+    itemName: string
+    itemUrl: string
+    itemQuantity: number
+}): Promise<void> {
+    const db = await getDatabase()
+
+    await db.withTransactionAsync(async () => {
+        //Resolve original IDs
+        const origCompartment = await db.getFirstAsync<{ compartmentId: number }>(
+            'SELECT compartmentId FROM compartments WHERE compartmentName = ?',
+            params.originalCompartmentName,
+        )
+        const origItem = await db.getFirstAsync<{ itemId: number }>(
+            'SELECT itemId FROM items WHERE itemName = ?',
+            params.originalItemName,
+        )
+        if (!origCompartment || !origItem) return
+
+        //Update item fields (name, url)
+        await db.runAsync(
+            'UPDATE items SET itemName = ?, itemUrl = ? WHERE itemId = ?',
+            params.itemName,
+            params.itemUrl || null,
+            origItem.itemId,
+        )
+
+        //Resolve new compartment (upsert in case it's brand-new)
+        await db.runAsync(
+            'INSERT OR IGNORE INTO compartments (compartmentName) VALUES (?)',
+            params.compartmentName,
+        )
+        const newCompartment = await db.getFirstAsync<{ compartmentId: number }>(
+            'SELECT compartmentId FROM compartments WHERE compartmentName = ?',
+            params.compartmentName,
+        )
+        if (!newCompartment) return
+
+        if (origCompartment.compartmentId !== newCompartment.compartmentId) {
+            //Compartment changed — delete old junction row and insert new one
+            await db.runAsync(
+                'DELETE FROM compartment_items WHERE compartmentId = ? AND itemId = ?',
+                origCompartment.compartmentId,
+                origItem.itemId,
+            )
+            await db.runAsync(
+                `INSERT INTO compartment_items (compartmentId, itemId, itemQuantity)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(compartmentId, itemId)
+                 DO UPDATE SET itemQuantity = excluded.itemQuantity`,
+                newCompartment.compartmentId,
+                origItem.itemId,
+                params.itemQuantity,
+            )
+        } else {
+            //Same compartment — just update quantity
+            await db.runAsync(
+                'UPDATE compartment_items SET itemQuantity = ? WHERE compartmentId = ? AND itemId = ?',
+                params.itemQuantity,
+                origCompartment.compartmentId,
+                origItem.itemId,
+            )
+        }
+    })
 }
 
 export async function saveInventoryItem(params: {
