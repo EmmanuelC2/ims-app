@@ -7,15 +7,19 @@ import {
     StyleSheet,
     KeyboardAvoidingView,
     ScrollView,
+    Image,
     Platform,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { Button } from '../Button'
+import { defaultItemIcon } from '../defaultItemIcon'
 import { listAllCompartmentNames } from '../../database/inventory'
 
 interface EditPanelProps {
     compartmentName: string
     itemName: string
     itemUrl: string | null
+    itemImage: string | null
     itemQuantity: number
     onClose: () => void
     onUpdate: (updated: {
@@ -24,19 +28,20 @@ interface EditPanelProps {
         compartmentName: string
         itemName: string
         itemUrl: string
+        itemImage: string | null
         itemQuantity: number
     }) => void
 }
 
 /**
- * Modal form for editing an existing inventory item.
- * All fields are pre-filled with the current values.
- * Includes a custom dropdown for changing the compartment.
+ * Modal form for editing an existing inventory item. Fields are pre-filled
+ * with the current values; the compartment is changed via a custom dropdown.
  */
 export function EditPanel({
     compartmentName,
     itemName,
     itemUrl,
+    itemImage,
     itemQuantity,
     onClose,
     onUpdate,
@@ -44,9 +49,23 @@ export function EditPanel({
     const [selectedCompartment, setSelectedCompartment] = useState(compartmentName)
     const [editItemName, setEditItemName] = useState(itemName)
     const [editItemUrl, setEditItemUrl] = useState(itemUrl ?? '')
+    const [editItemImage, setEditItemImage] = useState<string | null>(itemImage)
     const [editItemQuantity, setEditItemQuantity] = useState(String(itemQuantity))
 
-    //All compartment names for the dropdown
+    async function handlePickImage() {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (!permission.granted) return
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.8,
+        })
+        if (!result.canceled && result.assets[0]) {
+            setEditItemImage(result.assets[0].uri)
+        }
+    }
+
     const [compartmentNames, setCompartmentNames] = useState<string[]>([])
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
@@ -66,6 +85,7 @@ export function EditPanel({
             compartmentName: selectedCompartment,
             itemName: editItemName.trim(),
             itemUrl: editItemUrl.trim(),
+            itemImage: editItemImage,
             itemQuantity: quantity,
         })
     }
@@ -133,6 +153,29 @@ export function EditPanel({
                             autoComplete="off"
                             importantForAutofill="no"
                         />
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Item Image (optional)</Text>
+                        <View style={styles.imageRow}>
+                            <Image
+                                source={editItemImage ? { uri: editItemImage } : defaultItemIcon}
+                                style={styles.imagePreview}
+                            />
+                            <Pressable style={styles.imagePickerButton} onPress={handlePickImage}>
+                                <Text style={styles.imagePickerButtonText}>
+                                    {editItemImage ? 'Change Image' : 'Pick Image'}
+                                </Text>
+                            </Pressable>
+                            {editItemImage && (
+                                <Pressable
+                                    style={styles.imageClearButton}
+                                    onPress={() => setEditItemImage(null)}
+                                >
+                                    <Text style={styles.imageClearButtonText}>Clear</Text>
+                                </Pressable>
+                            )}
+                        </View>
                     </View>
 
                     <View style={styles.field}>
@@ -256,6 +299,39 @@ const styles = StyleSheet.create({
     },
     dropdownOptionTextActive: {
         fontWeight: '600',
+    },
+    imageRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    imagePreview: {
+        width: 48,
+        height: 48,
+        borderRadius: 6,
+        backgroundColor: '#f1f3f5',
+    },
+    imagePickerButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 6,
+        backgroundColor: '#edf2f4',
+        borderWidth: 1,
+        borderColor: '#d0d5dd',
+    },
+    imagePickerButtonText: {
+        color: '#2b2d42',
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    imageClearButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+    },
+    imageClearButtonText: {
+        color: '#d90429',
+        fontWeight: '600',
+        fontSize: 13,
     },
     footer: {
         flexDirection: 'row',

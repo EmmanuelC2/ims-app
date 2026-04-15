@@ -8,47 +8,32 @@ type LoadedModel = {
 }
 
 /**
- * Loads the truck 3D model from local assets and returns it as a Three.Group
- * 
- * This function handles:
- * - Resolving the local assets path
- * - Downloading the assest if needed
- * - Loading the GLB model using GLTFLoader
- * - Applying initial transforms (scale, position)
+ * Loads the truck GLB from bundled assets. Uses Expo's Asset system to
+ * resolve the bundled file to a URI, since React Native has no standard
+ * filesystem that GLTFLoader can read from directly.
  */
 export async function loadTruckModel(): Promise<LoadedModel> {
-
-    //Resolve local GLB asset using Expos Asset System (Resolves React Natives lack of normal file system)
     const asset = Asset.fromModule(require('../../assets/model/truck-prototype-1.glb'))
-    //Ensure the asset is downloaded and accessible
     await asset.downloadAsync()
 
-    //Parses .glb/gltf files into Three.js objects
     const loader = new GLTFLoader()
 
-    /**
-     * Wrap loader.load in a promise so we can use async/await
-     */
-    return new Promise((resolve,reject) => {
+    return new Promise((resolve, reject) => {
         loader.load(
             asset.uri,
-            //success callback
             (gltf) => {
                 const model = gltf.scene
-                model.scale.set(1,1,1)
-                model.position.set(0,0,0)
-                //resolve promise with loaded model
+                model.scale.set(1, 1, 1)
+                model.position.set(0, 0, 0)
                 resolve({
                     model,
-                    animations: gltf.animations
+                    animations: gltf.animations,
                 })
             },
-            //progress callback (unused, useful for loading UI)
             undefined,
-            //error callback
             (error) => {
                 reject(error)
-            }
+            },
         )
     })
 }

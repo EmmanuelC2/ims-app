@@ -17,14 +17,9 @@ interface ButtonProps {
 }
 
 /**
- * Reusable button with variant-based coloring.
- *
- * Variants:
- * - primary (blue)  — default, used for Save / Update
- * - success (green) — used for Add Item
- * - danger  (red)   — used for DEL / destructive actions
- *
- * Set compact=true for smaller inline buttons (e.g. DEL on list rows).
+ * Reusable pressable with variant-based coloring.
+ * Variants: primary (blue, default), success (green), danger (red).
+ * Set compact=true for smaller inline buttons, such as DEL on list rows.
  */
 export function Button({
     onPress,

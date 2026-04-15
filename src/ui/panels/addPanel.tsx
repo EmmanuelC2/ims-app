@@ -7,9 +7,12 @@ import {
     StyleSheet,
     KeyboardAvoidingView,
     ScrollView,
+    Image,
     Platform,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { Button } from '../Button'
+import { defaultItemIcon } from '../defaultItemIcon'
 
 interface AddPanelProps {
     compartmentName: string
@@ -18,18 +21,34 @@ interface AddPanelProps {
         compartmentName: string
         itemName: string
         itemUrl: string
+        itemImage: string | null
         itemQuantity: number
     }) => void
 }
 
 /**
- * Form panel for adding a new item to the currently open compartment.
- * Rendered on top of the InventoryPanel when the AddButton is pressed.
+ * Modal form for adding a new item to the currently open compartment.
+ * Rendered on top of the InventoryPanel when the Add Item button is pressed.
  */
 export function AddPanel({ compartmentName, onClose, onSave }: AddPanelProps) {
     const [itemName, setItemName] = useState('')
     const [itemUrl, setItemUrl] = useState('')
+    const [itemImage, setItemImage] = useState<string | null>(null)
     const [itemQuantity, setItemQuantity] = useState('')
+
+    async function handlePickImage() {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (!permission.granted) return
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.8,
+        })
+        if (!result.canceled && result.assets[0]) {
+            setItemImage(result.assets[0].uri)
+        }
+    }
 
     function handleSave() {
         const quantity = parseInt(itemQuantity, 10)
@@ -39,6 +58,7 @@ export function AddPanel({ compartmentName, onClose, onSave }: AddPanelProps) {
             compartmentName,
             itemName: itemName.trim(),
             itemUrl: itemUrl.trim(),
+            itemImage,
             itemQuantity: quantity,
         })
     }
@@ -71,6 +91,29 @@ export function AddPanel({ compartmentName, onClose, onSave }: AddPanelProps) {
                             autoComplete="off"
                             importantForAutofill="no"
                         />
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Item Image (optional)</Text>
+                        <View style={styles.imageRow}>
+                            <Image
+                                source={itemImage ? { uri: itemImage } : defaultItemIcon}
+                                style={styles.imagePreview}
+                            />
+                            <Pressable style={styles.imagePickerButton} onPress={handlePickImage}>
+                                <Text style={styles.imagePickerButtonText}>
+                                    {itemImage ? 'Change Image' : 'Pick Image'}
+                                </Text>
+                            </Pressable>
+                            {itemImage && (
+                                <Pressable
+                                    style={styles.imageClearButton}
+                                    onPress={() => setItemImage(null)}
+                                >
+                                    <Text style={styles.imageClearButtonText}>Clear</Text>
+                                </Pressable>
+                            )}
+                        </View>
                     </View>
 
                     <View style={styles.field}>
@@ -155,6 +198,39 @@ const styles = StyleSheet.create({
     inputDisabled: {
         backgroundColor: '#f1f3f5',
         color: '#6c757d',
+    },
+    imageRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    imagePreview: {
+        width: 48,
+        height: 48,
+        borderRadius: 6,
+        backgroundColor: '#f1f3f5',
+    },
+    imagePickerButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 6,
+        backgroundColor: '#edf2f4',
+        borderWidth: 1,
+        borderColor: '#d0d5dd',
+    },
+    imagePickerButtonText: {
+        color: '#2b2d42',
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    imageClearButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+    },
+    imageClearButtonText: {
+        color: '#d90429',
+        fontWeight: '600',
+        fontSize: 13,
     },
     footer: {
         flexDirection: 'row',

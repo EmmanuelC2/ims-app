@@ -6,37 +6,29 @@ import { createTruckPanResponder } from "./src/gestures/createTruckPanResponder"
 import { InventoryPanel } from "./src/ui/panels/InventoryPanel";
 
 /**
- * Root component of the app
- * Responsibilities: 
- * - Render the GLView (native OpenGL surface)
- * - Initailize the Three.js scene
- * - Manage cleanup when the component unmounts
+ * Root component. Hosts the GLView that owns the 3D scene, the gesture layer
+ * that drives truck rotation and tap raycasting, and the inventory panel that
+ * appears after a compartment opens.
  */
 export default function App() {
 
-  /**
-   * Holds reference to scene controller from createTruckScene()
-   * Allows us to stop render loop and dispose gpu resources when component is destroyed
-  */
+  //Rotation and gesture values are held in refs so drag updates do not
+  //trigger React re-renders at 60fps.
   const sceneControllerRef = useRef<TruckSceneController | null>(null)
 
-  //Stores trucks current x-axis rotation
   const truckRotationXRef = useRef<number>(0)
   const truckRotationYRef = useRef<number>(0)
 
-  //Stores trucks x-axis rotation at the moment drag begins
   const gestureStartRotationXRef = useRef<number>(0)
   const gestureStartRotationYRef = useRef<number>(0)
 
-  //Store gesture layers size
   const gestureLayerWidthRef = useRef<number>(0)
   const gestureLayerHeightRef = useRef<number>(0)
 
-  //Name of the compartment whose inventory panel is currently displayed.
-  //Set when the scene reports the open/rotate/zoom animations have settled.
+  //Set once the scene reports open/rotate/zoom animations have settled, which
+  //is the cue to mount the inventory panel.
   const [openCompartmentName, setOpenCompartmentName] = useState<string | null>(null)
 
-  //create pan responder once
   const panResponder = useRef(
     createTruckPanResponder({
       sceneControllerRef,
@@ -52,23 +44,15 @@ export default function App() {
     })
   ).current
 
-  /**
-   * Cleaup effect runs when component unmounts.
-   * Ensures three.js scene is properly disposed to avoid memory leaks, gpu resource leaks, or lingering animation loops
-   */
+  //Dispose the Three.js scene on unmount to release GPU resources and stop
+  //the render loop.
   useEffect(() => {
     return () => {
       sceneControllerRef.current?.dispose()
     }
   }, [])
 
-  /**
-   * Called automatically by GLView when OpenGL context is ready.
-   * Entry point for Three.js setup
-   * @param gl ExpoWebGLRenderingContext - special GL contxt from Expo
-   */
   async function onContextCreate(gl: ExpoWebGLRenderingContext) {
-    //intialize three.js scene and store controller
     sceneControllerRef.current = await createTruckScene(gl, {
       onCompartmentOpened: (compartmentName) => {
         setOpenCompartmentName(compartmentName)
@@ -76,16 +60,11 @@ export default function App() {
     })
   }
 
-  //Capture gesture layer size
   function onGestureLayerLayout(event: LayoutChangeEvent): void {
     gestureLayerWidthRef.current = event.nativeEvent.layout.width
-    gestureLayerHeightRef. current = event.nativeEvent.layout.height
+    gestureLayerHeightRef.current = event.nativeEvent.layout.height
   }
 
-  /**
-   * Render the GLView
-   * GLView provides native rendering surface where Three.js draws.
-   */
   return (
     <View style={styles.container}>
       <GLView style={styles.glView} onContextCreate={onContextCreate} />
@@ -107,7 +86,6 @@ export default function App() {
   )
 }
 
-//Basic layout styles (Flex: 1 ensures GLView fills entire screen)
 const styles = StyleSheet.create({
   container: {
     flex: 1

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { View, Text, Pressable, StyleSheet, Animated, FlatList } from 'react-native'
+import { View, Text, Pressable, StyleSheet, Animated, FlatList, Image } from 'react-native'
 import { Button } from '../Button'
+import { defaultItemIcon } from '../defaultItemIcon'
 import { AddPanel } from './addPanel'
 import { EditPanel } from './editPanel'
 import {
@@ -17,26 +18,17 @@ interface InventoryPanelProps {
 }
 
 /**
- * Full-screen overlay with a centered 90% panel that shows the contents of
- * the tapped compartment. Rendered above the GLView + gesture layer.
- *
- * On mount, the panel scales and fades in from a point (the center of the
- * screen — which is where the camera has just zoomed the compartment to),
- * giving the illusion that the panel is emerging from the compartment.
+ * Full-screen overlay showing the contents of the tapped compartment. The
+ * panel scales and fades in from the screen center — where the camera has
+ * just zoomed — so it appears to emerge from the compartment itself.
  */
 export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps) {
-    //Scale starts near-zero so the panel appears to grow out of the compartment.
+    //Near-zero so the panel visibly grows out of the compartment on mount.
     const scale = useRef(new Animated.Value(0.05)).current
-    //Opacity of both the panel itself and the darkening backdrop.
     const opacity = useRef(new Animated.Value(0)).current
 
-    //Whether the AddPanel form is currently overlaid on top of this panel.
     const [isAddPanelOpen, setIsAddPanelOpen] = useState(false)
-
-    //Item currently being edited via the EditPanel, or null when closed.
     const [editingItem, setEditingItem] = useState<CompartmentItemRow | null>(null)
-
-    //Items that live in this compartment, loaded from SQLite.
     const [items, setItems] = useState<CompartmentItemRow[]>([])
 
     const refreshItems = useCallback(async () => {
@@ -95,7 +87,13 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                                     style={styles.itemRow}
                                     onPress={() => setEditingItem(item)}
                                 >
-                                    <Text style={styles.itemName}>{item.itemName}</Text>
+                                    <View style={styles.itemLeft}>
+                                        <Image
+                                            source={item.itemImage ? { uri: item.itemImage } : defaultItemIcon}
+                                            style={styles.itemImage}
+                                        />
+                                        <Text style={styles.itemName}>{item.itemName}</Text>
+                                    </View>
                                     <View style={styles.itemActions}>
                                         <Text style={styles.itemQuantity}>
                                             x{item.itemQuantity}
@@ -144,6 +142,7 @@ export function InventoryPanel({ compartmentName, onClose }: InventoryPanelProps
                     compartmentName={compartmentName}
                     itemName={editingItem.itemName}
                     itemUrl={editingItem.itemUrl}
+                    itemImage={editingItem.itemImage}
                     itemQuantity={editingItem.itemQuantity}
                     onClose={() => setEditingItem(null)}
                     onUpdate={async (updated) => {
@@ -202,10 +201,23 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#edf2f4',
     },
+    itemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1,
+    },
+    itemImage: {
+        width: 36,
+        height: 36,
+        borderRadius: 6,
+        backgroundColor: '#f1f3f5',
+    },
     itemName: {
         fontSize: 15,
         color: '#2b2d42',
         fontWeight: '500',
+        flexShrink: 1,
     },
     itemActions: {
         flexDirection: 'row',

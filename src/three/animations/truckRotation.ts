@@ -1,9 +1,8 @@
 import * as THREE from 'three'
 
 /**
- * State for a smooth rotation of the truck model around X and Y.
- * The render loop calls advanceTruckRotationAnimation() each frame until it
- * reports done.
+ * Tween state for truck rotation around X and Y, advanced each frame by the
+ * render loop.
  */
 export interface TruckRotationAnimation {
     startRotationX: number
@@ -15,8 +14,8 @@ export interface TruckRotationAnimation {
 }
 
 /**
- * Build a TruckRotationAnimation, snapshotting the truck's current rotation as
- * the start so the tween begins wherever the truck is right now.
+ * Snapshots the truck's current rotation so the tween starts from wherever the
+ * model is right now.
  */
 export function createTruckRotationAnimation(params: {
     truckModel: THREE.Object3D
@@ -35,10 +34,8 @@ export function createTruckRotationAnimation(params: {
 }
 
 /**
- * Advance a TruckRotationAnimation by `delta` seconds using ease-out cubic.
- * Mutates truckModel.rotation.x and truckModel.rotation.y.
- *
- * @returns true when the animation has finished, false otherwise.
+ * Advances the tween by `delta` seconds (ease-out cubic), mutating
+ * truckModel.rotation. Returns true once the animation completes.
  */
 export function advanceTruckRotationAnimation(
     animation: TruckRotationAnimation,

@@ -1,8 +1,5 @@
 import * as SQLite from 'expo-sqlite'
 
-/**
- * Name of the on-device SQLite database file.
- */
 const DATABASE_NAME = 'ims.db'
 
 /**
@@ -13,9 +10,10 @@ const DATABASE_NAME = 'ims.db'
  *   compartmentName TEXT
  *
  * items
- *   itemId   INTEGER PRIMARY KEY
- *   itemName TEXT
- *   itemUrl  TEXT
+ *   itemId    INTEGER PRIMARY KEY
+ *   itemName  TEXT
+ *   itemUrl   TEXT
+ *   itemImage TEXT   (local file URI from image picker; null = use default)
  *
  * compartment_items (junction table with composite PK)
  *   compartmentId  INTEGER  (FK -> compartments.compartmentId)
@@ -32,9 +30,10 @@ CREATE TABLE IF NOT EXISTS compartments (
 );
 
 CREATE TABLE IF NOT EXISTS items (
-    itemId   INTEGER PRIMARY KEY AUTOINCREMENT,
-    itemName TEXT NOT NULL UNIQUE,
-    itemUrl  TEXT
+    itemId    INTEGER PRIMARY KEY AUTOINCREMENT,
+    itemName  TEXT NOT NULL UNIQUE,
+    itemUrl   TEXT,
+    itemImage TEXT
 );
 
 CREATE TABLE IF NOT EXISTS compartment_items (
@@ -50,14 +49,23 @@ CREATE TABLE IF NOT EXISTS compartment_items (
 let databaseInstance: SQLite.SQLiteDatabase | null = null
 
 /**
- * Open the database (if not already open) and ensure all tables exist.
- * Safe to call multiple times — subsequent calls return the cached instance.
+ * Opens the database (if not already open) and ensures the schema is up to
+ * date. Subsequent calls return the cached instance.
  */
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     if (databaseInstance) return databaseInstance
 
     const db = await SQLite.openDatabaseAsync(DATABASE_NAME)
     await db.execAsync(SCHEMA_SQL)
+
+    //Backfill itemImage on databases created before the column existed;
+    //CREATE TABLE IF NOT EXISTS does not alter pre-existing tables.
+    const columns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(items)',
+    )
+    if (!columns.some((c) => c.name === 'itemImage')) {
+        await db.execAsync('ALTER TABLE items ADD COLUMN itemImage TEXT')
+    }
 
     databaseInstance = db
     return db

@@ -1,9 +1,8 @@
 import * as THREE from 'three'
 
 /**
- * State for a smooth camera move + lookAt transition.
- * The render loop calls advanceCameraZoomAnimation() each frame until it
- * reports done.
+ * Tween state for a camera position + lookAt transition, advanced each frame
+ * by the render loop.
  */
 export interface CameraZoomAnimation {
     startPosition: THREE.Vector3
@@ -15,8 +14,8 @@ export interface CameraZoomAnimation {
 }
 
 /**
- * Build a CameraZoomAnimation, snapshotting the camera's current position and
- * lookAt as the start so the tween begins wherever the camera is right now.
+ * Snapshots the camera's current position and lookAt so the tween starts from
+ * wherever the camera is right now, not a fixed origin.
  */
 export function createCameraZoomAnimation(params: {
     camera: THREE.PerspectiveCamera
@@ -36,11 +35,9 @@ export function createCameraZoomAnimation(params: {
 }
 
 /**
- * Advance a CameraZoomAnimation by `delta` seconds using ease-out cubic.
- * Mutates camera.position and currentLookAt (the scene's lookAt tracker) and
- * calls camera.lookAt() each frame.
- *
- * @returns true when the animation has finished, false otherwise.
+ * Advances the tween by `delta` seconds (ease-out cubic). Mutates
+ * camera.position and the caller's currentLookAt tracker, then calls
+ * camera.lookAt(). Returns true once the animation completes.
  */
 export function advanceCameraZoomAnimation(
     animation: CameraZoomAnimation,

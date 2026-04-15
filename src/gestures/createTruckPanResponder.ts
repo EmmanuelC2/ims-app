@@ -3,11 +3,8 @@ import { RefObject } from "react"
 import { TruckSceneController } from "../three/createTruckScene"
 
 /**
- * Parameters required to create the truck pan responder.
- *
- * These refs allow us to:
- * - Read and update the truck's rotation without triggering React re-renders
- * - Communicate with the Three.js scene controller
+ * Refs are used instead of state so continuous gesture updates do not trigger
+ * React re-renders on every frame.
  */
 interface CreateTruckPanResponderParams {
     sceneControllerRef: RefObject<TruckSceneController | null>
@@ -23,13 +20,8 @@ interface CreateTruckPanResponderParams {
 }
 
 /**
- * Creates a PanResponder used to rotate the 3D truck model.
- *
- * Behavior:
- * - Vertical drag (dy) → rotates truck on the x-axis (tilt up/down)
- * - Horizontal drag (dx) → rotates truck on the y-axis (spin left/right)
- *
- * @returns PanResponderInstance - gesture handler to attach to a View
+ * Creates a PanResponder that rotates the truck on drag and raycasts on tap.
+ * Vertical drag tilts the truck on X; horizontal drag spins it on Y.
  */
 export function createTruckPanResponder({ 
    sceneControllerRef,
@@ -49,17 +41,15 @@ export function createTruckPanResponder({
         onMoveShouldSetPanResponder: () => true,
 
         onPanResponderGrant: () => {
-            //Save trucks current x and y rotation when drag starts
             gestureStartRotationXRef.current = truckRotationXRef.current
             gestureStartRotationYRef.current = truckRotationYRef.current
         },
 
         onPanResponderMove: (_, gestureState) => {
-            //Drag-rotate is disabled while a compartment is open.
-            //Tap-release still fires, so users can tap other compartments.
+            //Drag is disabled while a compartment is open, but tap-release still fires
+            //so the user can tap another compartment without closing the panel first.
             if (sceneControllerRef.current?.isCompartmentOpen()) return
 
-            //Add current vertical and horizontal drag distance to rotation
             const nextRotationX = gestureStartRotationXRef.current + gestureState.dy * xSensitivity
             const nextRotationY = gestureStartRotationYRef.current + gestureState.dx * ySensitivity
             truckRotationXRef.current = nextRotationX
