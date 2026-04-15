@@ -16,11 +16,13 @@ export async function loadTruckModel(): Promise<LoadedModel> {
     const asset = Asset.fromModule(require('../../assets/model/truck-prototype-1.glb'))
     await asset.downloadAsync()
 
+    const uri = asset.localUri || asset.uri
+
     const loader = new GLTFLoader()
 
     return new Promise((resolve, reject) => {
         loader.load(
-            asset.uri,
+            uri,
             (gltf) => {
                 const model = gltf.scene
                 model.scale.set(1, 1, 1)
@@ -32,6 +34,7 @@ export async function loadTruckModel(): Promise<LoadedModel> {
             },
             undefined,
             (error) => {
+                console.error("GLTF Load Error:", error)
                 reject(error)
             },
         )

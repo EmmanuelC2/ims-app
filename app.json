@@ -2,7 +2,7 @@
   "expo": {
     "name": "ims-app",
     "slug": "ims-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.emmanuelc2.imsapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,6 +30,20 @@
     "plugins": [
       "expo-asset",
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4f5013f5-cb4b-42ca-a7fd-a152023cd40e"
+      }
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4f5013f5-cb4b-42ca-a7fd-a152023cd40e"
+    }
   }
 }
